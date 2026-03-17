@@ -12,19 +12,31 @@ export class TodoListController extends ListController {
         super.setup();
         this.notification = useService("notification");
         this.orm = useService("orm");
-        this.dateFilter = useState({ dateFrom: "", dateTo: "", taskId: 0 });
+        this.dateFilter = useState({ dateFrom: "", dateTo: "", taskId: 0, taskName: "" });
         this.taskOptions = useState({ list: [] });
-        this._loadTaskOptions();
+        this.taskModal = useState({ show: false });
     }
 
-    async _loadTaskOptions() {
+    async onOpenTaskModal() {
         this.taskOptions.list = await this.orm.searchRead(
             "owl.todo.list", [], ["name"], { order: "name" }
         );
+        this.taskModal.show = true;
     }
 
-    onTaskChanged(ev) {
-        this.dateFilter.taskId = parseInt(ev.target.value) || 0;
+    onSelectTask(id, name) {
+        this.dateFilter.taskId = id;
+        this.dateFilter.taskName = name;
+        this.taskModal.show = false;
+    }
+
+    onClearTask() {
+        this.dateFilter.taskId = 0;
+        this.dateFilter.taskName = "";
+    }
+
+    onCloseTaskModal() {
+        this.taskModal.show = false;
     }
 
     onDateFromChanged(ev) {
