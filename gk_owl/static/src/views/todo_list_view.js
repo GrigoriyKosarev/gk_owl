@@ -12,7 +12,19 @@ export class TodoListController extends ListController {
         super.setup();
         this.notification = useService("notification");
         this.orm = useService("orm");
-        this.dateFilter = useState({ dateFrom: "", dateTo: "" });
+        this.dateFilter = useState({ dateFrom: "", dateTo: "", taskId: 0 });
+        this.taskOptions = useState({ list: [] });
+        this._loadTaskOptions();
+    }
+
+    async _loadTaskOptions() {
+        this.taskOptions.list = await this.orm.searchRead(
+            "owl.todo.list", [], ["name"], { order: "name" }
+        );
+    }
+
+    onTaskChanged(ev) {
+        this.dateFilter.taskId = parseInt(ev.target.value) || 0;
     }
 
     onDateFromChanged(ev) {
@@ -31,6 +43,9 @@ export class TodoListController extends ListController {
         if (this.dateFilter.dateTo) {
             domain.push(["create_date", "<=", this.dateFilter.dateTo + " 23:59:59"]);
         }
+        if (this.dateFilter.taskId) {
+            domain.push(["id", "=", this.dateFilter.taskId]);
+        }
         await this.model.root.load({ domain });
         this.model.notify();
     }
@@ -38,6 +53,7 @@ export class TodoListController extends ListController {
     async onDateFilterClear() {
         this.dateFilter.dateFrom = "";
         this.dateFilter.dateTo = "";
+        this.dateFilter.taskId = 0;
         await this.model.root.load({ domain: this.env.searchModel.domain });
         this.model.notify();
     }

@@ -25,6 +25,17 @@
                 <input type="date" class="form-control form-control-sm" style="width: auto;"
                        t-att-value="dateFilter.dateTo"
                        t-on-change="onDateToChanged" />
+                <label class="mb-0 fw-bold">Задача:</label>
+                <select class="form-select form-select-sm" style="width: auto;"
+                        t-on-change="onTaskChanged">
+                    <option value="0">-- Всі --</option>
+                    <t t-foreach="taskOptions.list" t-as="task" t-key="task.id">
+                        <option t-att-value="task.id"
+                                t-att-selected="dateFilter.taskId === task.id">
+                            <t t-esc="task.name"/>
+                        </option>
+                    </t>
+                </select>
                 <button class="btn btn-sm btn-primary"
                         t-on-click="onDateFilterApply">
                     Фільтрувати
