@@ -15,6 +15,26 @@
                 Delete Completed
             </button>
         </xpath>
+        <xpath expr="//div[hasclass('o_list_buttons')]" position="after">
+            <div class="d-flex align-items-center gap-2 ms-2 mt-2">
+                <label class="mb-0 fw-bold">Дата з:</label>
+                <input type="date" class="form-control form-control-sm" style="width: auto;"
+                       t-att-value="dateFilter.dateFrom"
+                       t-on-change="onDateFromChanged" />
+                <label class="mb-0 fw-bold">по:</label>
+                <input type="date" class="form-control form-control-sm" style="width: auto;"
+                       t-att-value="dateFilter.dateTo"
+                       t-on-change="onDateToChanged" />
+                <button class="btn btn-sm btn-primary"
+                        t-on-click="onDateFilterApply">
+                    Фільтрувати
+                </button>
+                <button class="btn btn-sm btn-outline-secondary"
+                        t-on-click="onDateFilterClear">
+                    Скинути
+                </button>
+            </div>
+        </xpath>
     </t>
 
 </templates>
