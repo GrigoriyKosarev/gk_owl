@@ -26,16 +26,22 @@
                        t-att-value="dateFilter.dateTo"
                        t-on-change="onDateToChanged" />
                 <label class="mb-0 fw-bold">Задача:</label>
-                <select class="form-select form-select-sm" style="width: auto;"
-                        t-on-change="onTaskChanged">
-                    <option value="0">-- Всі --</option>
-                    <t t-foreach="taskOptions.list" t-as="task" t-key="task.id">
-                        <option t-att-value="task.id"
-                                t-att-selected="dateFilter.taskId === task.id">
-                            <t t-esc="task.name"/>
-                        </option>
-                    </t>
-                </select>
+                <div class="input-group input-group-sm" style="width: auto;">
+                    <input type="text" class="form-control" style="min-width: 150px;"
+                           t-att-value="dateFilter.taskName"
+                           placeholder="-- Всі --"
+                           readonly="1"
+                           t-on-click="onOpenTaskModal" />
+                    <button class="btn btn-outline-secondary" type="button"
+                            t-if="dateFilter.taskId"
+                            t-on-click="onClearTask">
+                        ✕
+                    </button>
+                    <button class="btn btn-outline-secondary" type="button"
+                            t-on-click="onOpenTaskModal">
+                        ▼
+                    </button>
+                </div>
                 <button class="btn btn-sm btn-primary"
                         t-on-click="onDateFilterApply">
                     Фільтрувати
@@ -44,6 +50,31 @@
                         t-on-click="onDateFilterClear">
                     Скинути
                 </button>
+            </div>
+        </xpath>
+        <xpath expr="//div[hasclass('o_list_buttons')]" position="after">
+            <div t-if="taskModal.show" class="modal d-block" style="background: rgba(0,0,0,0.5);">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Вибрати задачу</h5>
+                            <button type="button" class="btn-close"
+                                    t-on-click="onCloseTaskModal"/>
+                        </div>
+                        <div class="modal-body p-0">
+                            <div class="list-group list-group-flush">
+                                <t t-foreach="taskOptions.list" t-as="task" t-key="task.id">
+                                    <button type="button"
+                                            class="list-group-item list-group-item-action"
+                                            t-att-class="{'active': dateFilter.taskId === task.id}"
+                                            t-on-click="() => this.onSelectTask(task.id, task.name)">
+                                        <t t-esc="task.name"/>
+                                    </button>
+                                </t>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </xpath>
     </t>
