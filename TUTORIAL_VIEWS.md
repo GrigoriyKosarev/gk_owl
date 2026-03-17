@@ -199,11 +199,30 @@ const listView = {
 
 import { patch } from "@web/core/utils/patch";
 
-// Базовий синтаксис:
-patch(ЩоПатчимо.prototype, {
+// Синтаксис patch() в Odoo 16 — ТРИ аргументи:
+patch(ЩоПатчимо.prototype, "унікальна_назва_патчу", {
     // Нові або перевизначені методи
 });
 ```
+
+**УВАГА: Odoo 16 vs Odoo 17+ — різний синтаксис!**
+
+```javascript
+// ╔════════════════════════════════════════════════════════════════╗
+// ║  Odoo 16: ТРИ аргументи, this._super()                       ║
+// ╠════════════════════════════════════════════════════════════════╣
+// ║  patch(object, "patch_name", { methods })                     ║
+// ║  Виклик оригіналу: this._super(...arguments)                  ║
+// ╠════════════════════════════════════════════════════════════════╣
+// ║  Odoo 17+: ДВА аргументи, super                              ║
+// ╠════════════════════════════════════════════════════════════════╣
+// ║  patch(object, { methods })                                   ║
+// ║  Виклик оригіналу: super.method(...arguments)                 ║
+// ╚════════════════════════════════════════════════════════════════╝
+```
+
+Якщо ви побачите приклади в інтернеті з 2 аргументами та `super` —
+це для Odoo 17+. В Odoo 16 це НЕ працюватиме!
 
 ### 2.3 Приклад 1: Додати метод до існуючого класу
 
@@ -214,13 +233,18 @@ import { patch } from "@web/core/utils/patch";
 import { ListController } from "@web/views/list/list_controller";
 
 // Додаємо новий метод до ListController
-patch(ListController.prototype, {
+// Другий аргумент — УНІКАЛЬНА назва патчу (будь-який рядок)
+patch(ListController.prototype, "my_module.ListControllerCustom", {
     // Новий метод, якого раніше не було
     myCustomMethod() {
         console.log("Мій кастомний метод!");
     }
 });
 ```
+
+**Назва патчу** (`"my_module.ListControllerCustom"`) — це просто рядок-ідентифікатор.
+Рекомендований формат: `назва_модуля.НазваКласу.ЩоПатчимо`. Ця назва потрібна,
+щоб можна було видалити патч через `unpatch()`.
 
 ### 2.4 Приклад 2: Перевизначити існуючий метод
 
@@ -230,19 +254,36 @@ patch(ListController.prototype, {
 import { patch } from "@web/core/utils/patch";
 import { ListController } from "@web/views/list/list_controller";
 
-patch(ListController.prototype, {
+patch(ListController.prototype, "my_module.ListControllerSetup", {
     // Перевизначаємо існуючий метод setup()
     setup() {
-        // ВАЖЛИВО: виклик оригінального методу!
-        super.setup(...arguments);
+        // ВАЖЛИВО: this._super() — виклик ОРИГІНАЛЬНОГО методу!
+        this._super(...arguments);
         // Після оригінальної ініціалізації — наш код:
         console.log("ListController ініціалізовано з патчем!");
     }
 });
 ```
 
-**КРИТИЧНО:** Завжди викликайте `super.метод()` якщо перевизначаєте існуючий
-метод! Інакше ви повністю замінити оригінальну логіку і view може зламатися.
+**КРИТИЧНО: `this._super()` а НЕ `super`!**
+
+В Odoo 16 patch використовує `this._super()` для виклику оригінального методу.
+Це НЕ стандартний JavaScript `super` — це спеціальна функція від Odoo.
+
+```javascript
+// ❌ НЕПРАВИЛЬНО для Odoo 16:
+setup() {
+    super.setup(...arguments);        // НЕ працює з patch!
+}
+
+// ✅ ПРАВИЛЬНО для Odoo 16:
+setup() {
+    this._super(...arguments);        // Виклик оригіналу
+}
+```
+
+Завжди викликайте `this._super()` якщо перевизначаєте існуючий метод!
+Інакше ви повністю заміните оригінальну логіку і view може зламатися.
 
 ### 2.5 Приклад 3: Патч з async методами
 
@@ -252,23 +293,54 @@ patch(ListController.prototype, {
 import { patch } from "@web/core/utils/patch";
 import { ListController } from "@web/views/list/list_controller";
 
-patch(ListController.prototype, {
-    // Перевизначаємо async метод
-    async setup() {
-        // Виклик оригінального setup
-        super.setup(...arguments);
+patch(ListController.prototype, "my_module.ListControllerAsync", {
+    setup() {
+        this._super(...arguments);  // Виклик оригіналу
     },
 
     // Новий async метод
     async myAsyncAction() {
-        // Можна використовувати сервіси через this
         const result = await this.orm.searchRead("res.partner", [], ["name"]);
         console.log("Партнери:", result);
     }
 });
 ```
 
-### 2.6 Обмеження patch()
+**УВАГА з async та `_super`:** Не можна викликати `this._super()` ПІСЛЯ `await`!
+`_super` — це тимчасове посилання, яке може стати некоректним після
+асинхронного кроку.
+
+```javascript
+// ❌ НЕПРАВИЛЬНО — _super після await:
+async myMethod() {
+    const data = await loadData();
+    this._super(...arguments);    // МОЖЕ НЕ ПРАЦЮВАТИ!
+}
+
+// ✅ ПРАВИЛЬНО — _super ПЕРЕД await:
+async myMethod() {
+    this._super(...arguments);    // Спочатку викликаємо оригінал
+    const data = await loadData(); // Потім наш async код
+}
+
+// ✅ ПРАВИЛЬНО — зберегти посилання:
+async myMethod() {
+    const _super = this._super.bind(this);
+    const data = await loadData();
+    _super(...arguments);         // Використовуємо збережене посилання
+}
+```
+
+### 2.6 Видалення патчу (unpatch)
+
+```javascript
+import { unpatch } from "@web/core/utils/patch";
+
+// Видалити патч за назвою
+unpatch(ListController.prototype, "my_module.ListControllerSetup");
+```
+
+### 2.7 Обмеження patch()
 
 | Можна | Не можна |
 |-------|----------|
@@ -279,7 +351,7 @@ patch(ListController.prototype, {
 
 **Для зміни XML шаблону** потрібен інший підхід — `t-inherit` (описаний нижче).
 
-### 2.7 Як дізнатися які методи є у Controller/Renderer?
+### 2.8 Як дізнатися які методи є у Controller/Renderer?
 
 Найкращий спосіб — подивитися вихідний код Odoo:
 
@@ -330,10 +402,11 @@ import { patch } from "@web/core/utils/patch";
 import { ListController } from "@web/views/list/list_controller";
 import { useService } from "@web/core/utils/hooks";
 
-patch(ListController.prototype, {
+patch(ListController.prototype, "my_module.ListControllerButton", {
+    //                           ↑ унікальна назва патчу (Odoo 16!)
     setup() {
-        // Викликаємо оригінальний setup
-        super.setup(...arguments);
+        // this._super — виклик оригіналу (Odoo 16!)
+        this._super(...arguments);
         // Підключаємо сервіс дій (для виклику дій Odoo)
         this.actionService = useService("action");
     },
@@ -462,13 +535,12 @@ export class TodoListController extends ListController {
     }
 }
 
-// Вказуємо шаблон для кнопок цього контролера
-TodoListController.template = "your_module.TodoListView.Buttons";
-
 // Створюємо новий об'єкт view на основі стандартного listView
 export const todoListView = {
     ...listView,                          // Копіюємо все зі стандартного
     Controller: TodoListController,       // Замінюємо контролер на наш
+    buttonTemplate: "your_module.TodoListView.Buttons",  // Шаблон кнопок
+    //              ↑ цей підхід через buttonTemplate — рекомендований в Odoo 16
 };
 
 // Реєструємо нашу view під назвою "todo_list_view"
@@ -580,9 +652,9 @@ views/todo_list.xml
 import { patch } from "@web/core/utils/patch";
 import { ListRenderer } from "@web/views/list/list_renderer";
 
-patch(ListRenderer.prototype, {
+patch(ListRenderer.prototype, "my_module.ListRendererRowColor", {
     setup() {
-        super.setup(...arguments);
+        this._super(...arguments);
         // Тут можна додати логіку для рендерера
     },
 
@@ -590,7 +662,7 @@ patch(ListRenderer.prototype, {
     // Це дозволяє фарбувати рядки в залежності від даних
     getRowClass(record) {
         // Виклик оригінального методу для базового класу
-        let className = super.getRowClass(record);
+        let className = this._super(...arguments);
 
         // Якщо задача виконана — зробити рядок зеленим
         if (record.data.completed) {
@@ -629,9 +701,9 @@ import { patch } from "@web/core/utils/patch";
 import { FormController } from "@web/views/form/form_controller";
 import { useService } from "@web/core/utils/hooks";
 
-patch(FormController.prototype, {
+patch(FormController.prototype, "my_module.FormControllerDuplicate", {
     setup() {
-        super.setup(...arguments);
+        this._super(...arguments);
         this.notification = useService("notification");
     },
 
@@ -788,9 +860,9 @@ import { FormRenderer } from "@web/views/form/form_renderer";
 
 const { onMounted } = owl;
 
-patch(FormRenderer.prototype, {
+patch(FormRenderer.prototype, "my_module.FormRendererMounted", {
     setup() {
-        super.setup(...arguments);
+        this._super(...arguments);
 
         // Після того, як форма відобразилась
         onMounted(() => {
@@ -895,14 +967,14 @@ registry.category("views").add("custom_pivot_view", customPivotView);
 import { patch } from "@web/core/utils/patch";
 import { PivotRenderer } from "@web/views/pivot/pivot_renderer";
 
-patch(PivotRenderer.prototype, {
+patch(PivotRenderer.prototype, "my_module.PivotRendererHighlight", {
     setup() {
-        super.setup(...arguments);
+        this._super(...arguments);
     },
 
     // Перевизначаємо CSS клас для комірок pivot
     getCellClass(cell) {
-        let className = super.getCellClass(cell);
+        let className = this._super(...arguments);
 
         // Наприклад, підсвічуємо великі числа
         if (cell.value > 100) {
@@ -990,9 +1062,9 @@ Search View в Odoo 16 — це панель з фільтрами, групув
 import { patch } from "@web/core/utils/patch";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 
-patch(ControlPanel.prototype, {
+patch(ControlPanel.prototype, "my_module.ControlPanelButton", {
     setup() {
-        super.setup(...arguments);
+        this._super(...arguments);
     },
 
     onClickMySearchButton() {
@@ -1028,9 +1100,9 @@ patch(ControlPanel.prototype, {
 import { patch } from "@web/core/utils/patch";
 import { ListController } from "@web/views/list/list_controller";
 
-patch(ListController.prototype, {
+patch(ListController.prototype, "my_module.ListControllerFilters", {
     setup() {
-        super.setup(...arguments);
+        this._super(...arguments);
     },
 
     // Програмно застосувати фільтр "тільки виконані"
@@ -1321,9 +1393,10 @@ import { patch } from "@web/core/utils/patch";
 import { BooleanField } from "@web/views/fields/boolean/boolean_field";
 
 // Патчимо стандартний чекбокс, щоб показувати повідомлення
-patch(BooleanField.prototype, {
+patch(BooleanField.prototype, "my_module.BooleanFieldLog", {
     async onChange(value) {
-        await super.onChange(...arguments);
+        const _super = this._super.bind(this);
+        await _super(...arguments);  // збережене посилання, бо async!
         if (value) {
             console.log("Задачу позначено як виконану!");
         }
@@ -1520,7 +1593,7 @@ this.action.doAction({
 ```
 1. Створити JS файл:   static/src/views/my_patch.js
 2. Створити XML файл:  static/src/views/my_patch.xml  (якщо міняємо шаблон)
-3. JS: import { patch }  + patch(Controller.prototype, { ... })
+3. JS: import { patch }  + patch(Controller.prototype, "назва", { ... })
 4. XML: t-inherit="web.XXX.Buttons" t-inherit-mode="extension"
 5. Manifest: додати обидва файли до web.assets_backend
 6. Оновити модуль
@@ -1568,11 +1641,12 @@ this.action.doAction({
   збігається з `<tree js_class="NAME">`
 - Оновіть модуль та перезапустіть Odoo
 
-### 6. super.setup(...arguments) кидає помилку
-- Переконайтесь, що використовуєте `super.setup(...arguments)`, а не `super.setup()`
-  (передайте аргументи!)
-- В patch: `super` працює автоматично
-- В extends: `super.setup()` без arguments теж працює
+### 6. Помилка при виклику оригінального методу
+- **В `patch()`:** використовуйте `this._super(...arguments)` (НЕ `super`!)
+- **В `extends` класі:** використовуйте `super.setup()` (стандартний JS)
+- **Не плутайте:** `patch` = `this._super`, `extends` = `super`
+- В async методах з patch: збережіть `const _super = this._super.bind(this)`
+  перед `await`, потім викликайте `_super(...arguments)`
 
 ### 7. Зміни не видно після оновлення модуля
 - Перезапустіть Odoo сервер
