@@ -4,6 +4,7 @@ import { registry } from "@web/core/registry";
 import { listView } from "@web/views/list/list_view";
 import { ListController } from "@web/views/list/list_controller";
 import { useService } from "@web/core/utils/hooks";
+const { useState } = owl;
 
 // Створюємо НОВИЙ контролер на основі стандартного
 export class TodoListController extends ListController {
@@ -11,6 +12,34 @@ export class TodoListController extends ListController {
         super.setup();
         this.notification = useService("notification");
         this.orm = useService("orm");
+        this.dateFilter = useState({ dateFrom: "", dateTo: "" });
+    }
+
+    onDateFromChanged(ev) {
+        this.dateFilter.dateFrom = ev.target.value || "";
+    }
+
+    onDateToChanged(ev) {
+        this.dateFilter.dateTo = ev.target.value || "";
+    }
+
+    async onDateFilterApply() {
+        const domain = [...this.env.searchModel.domain];
+        if (this.dateFilter.dateFrom) {
+            domain.push(["create_date", ">=", this.dateFilter.dateFrom + " 00:00:00"]);
+        }
+        if (this.dateFilter.dateTo) {
+            domain.push(["create_date", "<=", this.dateFilter.dateTo + " 23:59:59"]);
+        }
+        await this.model.root.load({ domain });
+        this.model.notify();
+    }
+
+    async onDateFilterClear() {
+        this.dateFilter.dateFrom = "";
+        this.dateFilter.dateTo = "";
+        await this.model.root.load({ domain: this.env.searchModel.domain });
+        this.model.notify();
     }
 
     // Кастомний метод
