@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- Розширюємо СТАНДАРТНИЙ шаблон кнопок list view -->
+    <t t-name="gk_owl.TodoListView.Buttons" t-inherit="web.ListView.Buttons" t-inherit-mode="primary">
+        <!-- primary = створюємо НОВИЙ шаблон на основі існуючого -->
+
+        <xpath expr="//div[hasclass('o_list_buttons')]" position="inside">
+            <button class="btn btn-success ms-2"
+                    t-on-click="onClickCompleteAll">
+                Complete All
+            </button>
+            <button class="btn btn-danger ms-2"
+                    t-on-click="onClickDeleteCompleted">
+                Delete Completed
+            </button>
+        </xpath>
+    </t>
+
+</templates>

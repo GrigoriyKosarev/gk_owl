@@ -13,6 +13,8 @@
             'gk_owl/static/src/components/todo_list/todo_list.js',
             'gk_owl/static/src/components/todo_list/todo_list.scss',
             'gk_owl/static/src/components/todo_list/todo_list.xml',
+            'gk_owl/static/src/views/todo_list_view.js',
+            'gk_owl/static/src/views/todo_list_view.xml',
         ],
     },
     'installable': True,
